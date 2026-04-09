@@ -50,6 +50,34 @@ def build_client() -> OpenAI:
     return OpenAI(api_key=api_key)
 
 
+def llm_text(client: OpenAI, model: str, system_prompt: str, user_prompt: str, temperature: float = 0.3) -> str:
+    """
+    Return text from LLM with compatibility fallback:
+    1) OpenAI Responses API
+    2) OpenAI-compatible Chat Completions API (e.g. GitHub Models)
+    """
+    try:
+        rsp = client.responses.create(
+            model=model,
+            temperature=temperature,
+            input=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+        )
+        return (rsp.output_text or "").strip()
+    except Exception:
+        chat = client.chat.completions.create(
+            model=model,
+            temperature=temperature,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+        )
+        return ((chat.choices[0].message.content or "") if chat.choices else "").strip()
+
+
 def get_http_client() -> httpx.Client:
     return httpx.Client(timeout=HTTP_TIMEOUT, headers={"User-Agent": "industry-research-skill/1.1"})
 
@@ -457,15 +485,7 @@ def extract_topic_with_llm(client: OpenAI, raw_query: str, model: str) -> str:
         "仅返回主题词，不要解释，不要加引号。"
         "如果有多个主题，请保留最核心或并列主题短语。"
     )
-    rsp = client.responses.create(
-        model=model,
-        temperature=0.1,
-        input=[
-            {"role": "system", "content": prompt},
-            {"role": "user", "content": raw_query},
-        ],
-    )
-    topic = (rsp.output_text or "").strip()
+    topic = llm_text(client, model, prompt, raw_query, temperature=0.1)
     if not topic:
         topic = raw_query.strip()
     return topic[:MAX_TOPIC_LEN]
@@ -506,15 +526,7 @@ def generate_report_markdown(
         "并在正文中明确区分“事实数据”和“基于数据的判断”。\n\n"
         f"实时数据快照如下：\n{data_json}\n"
     )
-    rsp = client.responses.create(
-        model=model,
-        temperature=0.35,
-        input=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
-        ],
-    )
-    text = (rsp.output_text or "").strip()
+    text = llm_text(client, model, system_prompt, user_prompt, temperature=0.35)
     if not text:
         text = f"# {topic}行业研究报告\n\n## 执行摘要\n暂无内容。"
     title_match = re.search(r"^#\s+(.+)$", text, flags=re.MULTILINE)
