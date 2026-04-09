@@ -1,0 +1,109 @@
+{
+  "theme_keyword_map": {
+    "compute": {
+      "算力": 1.0,
+      "gpu": 2.0,
+      "服务器": 1.0,
+      "idc": 1.5,
+      "光模块": 1.8,
+      "数据中心": 1.3,
+      "芯片": 1.2
+    },
+    "model": {
+      "模型": 1.0,
+      "大模型": 1.5,
+      "llm": 1.8,
+      "多模态": 1.4,
+      "agent": 1.2,
+      "推理": 1.5,
+      "训练": 1.2
+    },
+    "application": {
+      "应用": 1.0,
+      "aigc": 1.5,
+      "saas": 1.3,
+      "智能体": 1.4,
+      "办公": 0.8,
+      "营销": 0.8
+    }
+  },
+  "themes": {
+    "default": {
+      "us_symbols_stooq": [
+        "nvda.us",
+        "amd.us",
+        "tsm.us",
+        "smci.us",
+        "msft.us",
+        "goog.us",
+        "amzn.us",
+        "meta.us"
+      ],
+      "cn_hk_symbols_yahoo": {
+        "688256.SS": "寒武纪",
+        "300308.SZ": "中际旭创",
+        "601138.SS": "工业富联",
+        "0700.HK": "腾讯控股",
+        "9988.HK": "阿里巴巴-SW"
+      }
+    },
+    "compute": {
+      "us_symbols_stooq": [
+        "nvda.us",
+        "amd.us",
+        "tsm.us",
+        "smci.us",
+        "avgo.us",
+        "mrvl.us",
+        "eqix.us",
+        "dlr.us"
+      ],
+      "cn_hk_symbols_yahoo": {
+        "688256.SS": "寒武纪",
+        "300308.SZ": "中际旭创",
+        "601138.SS": "工业富联",
+        "002281.SZ": "光迅科技",
+        "603083.SS": "剑桥科技",
+        "0700.HK": "腾讯控股"
+      }
+    },
+    "model": {
+      "us_symbols_stooq": [
+        "msft.us",
+        "goog.us",
+        "amzn.us",
+        "meta.us",
+        "orcl.us",
+        "crm.us",
+        "adbe.us",
+        "snow.us"
+      ],
+      "cn_hk_symbols_yahoo": {
+        "0700.HK": "腾讯控股",
+        "9988.HK": "阿里巴巴-SW",
+        "9888.HK": "百度集团-SW",
+        "0241.HK": "阿里健康",
+        "600941.SS": "中国移动"
+      }
+    },
+    "application": {
+      "us_symbols_stooq": [
+        "msft.us",
+        "goog.us",
+        "meta.us",
+        "adbe.us",
+        "crm.us",
+        "shop.us",
+        "now.us",
+        "intu.us"
+      ],
+      "cn_hk_symbols_yahoo": {
+        "0700.HK": "腾讯控股",
+        "9988.HK": "阿里巴巴-SW",
+        "3690.HK": "美团-W",
+        "9626.HK": "哔哩哔哩-W",
+        "002230.SZ": "科大讯飞"
+      }
+    }
+  }
+}
