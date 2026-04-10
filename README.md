@@ -1,4 +1,4 @@
-# Industry Research Report Skill
+# 📊 Industry Research Report Skill
 
 An extensible Cursor skill for generating data-enhanced industry research reports with:
 
@@ -8,28 +8,28 @@ An extensible Cursor skill for generating data-enhanced industry research report
 - configurable watchlist for US + A/HK symbols
 - auto theme selection and weighted multi-theme blending
 
-## Features
+## ✨ Features
 
-- **Structured report generation**
+- 🧱 **Structured report generation**
   - extracts topic from free-form query
   - writes analyst-style Chinese report in Markdown
   - follows a 4-part framework: company profile, industry quantity-price analysis, competitive edge, and forecast
   - supports two switchable styles: `industry_deep_dive` and `company_initiation`
   - exports DOCX/PDF and shareable HTML
-- **Real data snapshot**
+- 🌐 **Real data snapshot**
   - compute layer: infra repo release/activity signals
   - model layer: framework/model ecosystem snapshots
   - market layer: US + A/HK quotes
   - news layer: topic and AI macro RSS streams
-- **Tracking mode**
+- ⏱️ **Tracking mode**
   - daily/weekly report generation
   - optional tracker history output (`jsonl`)
-- **Theme-aware watchlist**
+- 🎯 **Theme-aware watchlist**
   - `--theme auto|default|compute|model|application`
   - weighted keyword dictionary for theme scoring
   - multi-theme merge with `--mix-top-k`
 
-## Project Structure
+## 🗂️ Project Structure
 
 ```text
 .cursor/skills/industry-research-report/
@@ -41,7 +41,7 @@ An extensible Cursor skill for generating data-enhanced industry research report
    └─ tracker.py
 ```
 
-## Requirements
+## ✅ Requirements
 
 - Python 3.9+
 - OpenAI API key
@@ -65,7 +65,7 @@ $env:OPENAI_BASE_URL="https://api.openai.com/v1"
 $env:OPENAI_MODEL="gpt-4o-mini"
 ```
 
-## Usage
+## 🚀 Usage
 
 ### 1) Generate a general report
 
@@ -120,7 +120,7 @@ python .cursor/skills/industry-research-report/scripts/get_data.py --query "AI�
 python .cursor/skills/industry-research-report/scripts/get_data.py --query "AI行业研究（全量版）" --preset full
 ```
 
-## watchlist.json Overview
+## 🧠 `watchlist.json` Overview
 
 Key fields:
 
@@ -140,7 +140,7 @@ Example weighted keywords:
 }
 ```
 
-## Outputs
+## 📦 Outputs
 
 Each run writes artifacts under:
 
@@ -157,7 +157,7 @@ Typical outputs:
 - `<timestamp>_<title>.pdf`
 - `<timestamp>_<title>.html`
 
-## Report Writing Framework
+## 📝 Report Writing Framework
 
 The generated report now follows a practical research-writing structure for early-stage analysts:
 
@@ -186,7 +186,7 @@ In addition, the template now borrows from a universal industry-report framework
 - optional benchmark-company section
 - separate recommendations for enterprises and investors
 
-## Notes
+## ⚠️ Notes
 
 - Keep secrets out of logs and repository files.
 - If quote/news endpoints are temporarily unavailable, script falls back gracefully and still returns report output.
