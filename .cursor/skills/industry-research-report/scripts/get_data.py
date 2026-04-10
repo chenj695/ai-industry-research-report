@@ -13,6 +13,10 @@ from typing import Dict, List, Tuple, Optional
 from urllib.parse import quote
 
 from docx import Document
+from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.enum.text import WD_LINE_SPACING
+from docx.oxml.ns import qn
+from docx.shared import Pt
 import httpx
 from openai import OpenAI
 from reportlab.lib.pagesizes import A4
@@ -26,6 +30,8 @@ DEFAULT_MODEL = "gpt-4o-mini"
 HTTP_TIMEOUT = 20.0
 DEFAULT_TOPIC = "AI产业"
 DEFAULT_WATCHLIST_FILE = "watchlist.json"
+DEFAULT_TEMPLATE_STYLE = "industry_deep_dive"
+DEFAULT_PRESET = "custom"
 
 
 def sanitize_filename(name: str) -> str:
@@ -103,6 +109,50 @@ def safe_get_text(client: httpx.Client, url: str) -> str:
 def normalize_mode(mode: str) -> str:
     v = (mode or "general").strip().lower()
     return v if v in {"general", "daily", "weekly"} else "general"
+
+
+def normalize_template_style(style: str) -> str:
+    v = (style or DEFAULT_TEMPLATE_STYLE).strip().lower()
+    return v if v in {"industry_deep_dive", "company_initiation", "auto"} else DEFAULT_TEMPLATE_STYLE
+
+
+def pick_template_style(style: str, query: str, topic: str) -> str:
+    style = normalize_template_style(style)
+    if style != "auto":
+        return style
+    text = f"{query} {topic}".lower()
+    company_keywords = [
+        "公司",
+        "首次覆盖",
+        "覆盖",
+        "估值",
+        "财报",
+        "盈利预测",
+        "管理层",
+        "股权",
+        "竞争优势",
+        "护城河",
+        "roe",
+        "pe",
+        "pb",
+        "dcf",
+        "initiation",
+    ]
+    for kw in company_keywords:
+        if kw in text:
+            return "company_initiation"
+    return "industry_deep_dive"
+
+
+def resolve_section_toggles(
+    preset: str, include_pest: bool, include_five_forces: bool, include_segmentation: bool
+) -> Tuple[bool, bool, bool]:
+    p = (preset or DEFAULT_PRESET).strip().lower()
+    if p == "quick":
+        return False, False, False
+    if p == "full":
+        return True, True, True
+    return include_pest, include_five_forces, include_segmentation
 
 
 def load_watchlist(base_dir: Path, watchlist_path: str = "") -> Dict:
@@ -492,26 +542,84 @@ def extract_topic_with_llm(client: OpenAI, raw_query: str, model: str) -> str:
 
 
 def generate_report_markdown(
-    client: OpenAI, topic: str, model: str, data_snapshot: Dict, mode: str = "general"
+    client: OpenAI,
+    topic: str,
+    model: str,
+    data_snapshot: Dict,
+    mode: str = "general",
+    template_style: str = DEFAULT_TEMPLATE_STYLE,
+    include_pest: bool = True,
+    include_five_forces: bool = True,
+    include_segmentation: bool = True,
 ) -> Tuple[str, str]:
     mode = normalize_mode(mode)
+    template_style = normalize_template_style(template_style)
     today = dt.date.today().isoformat()
-    system_prompt = (
-        "你是一名资深行业分析师。请使用中文输出专业、结构化行业研究报告。"
-        "输出必须是 markdown，包含：\n"
-        "# 标题\n"
-        "## 执行摘要\n"
-        "## 数据快照（算力层->模型层->市场层）\n"
-        "## 行业定义与边界\n"
-        "## 市场规模与增速（给出区间/假设）\n"
-        "## 产业链与关键环节\n"
-        "## 竞争格局（5力/CRn/商业模式）\n"
-        "## 核心驱动因素\n"
-        "## 风险与不确定性\n"
-        "## 未来3年情景推演（乐观/基准/悲观）\n"
-        "## 结论与建议\n"
-        "要求：逻辑清晰、可用于面试与业务沟通，避免空话。"
+    pest_section = "## 宏观环境分析（PEST）\n" if include_pest else ""
+    five_forces_section = "## 行业竞争态势（波特五力）\n" if include_five_forces else ""
+    segmentation_section = "## 细分市场分析（可选）\n" if include_segmentation else ""
+    toggle_hint = (
+        f"可选模块开关：PEST={'on' if include_pest else 'off'}，"
+        f"五力={'on' if include_five_forces else 'off'}，"
+        f"细分市场={'on' if include_segmentation else 'off'}。"
     )
+    if template_style == "company_initiation":
+        system_prompt = (
+            "你是一名资深卖方分析师。请使用中文输出公司首次覆盖风格研究报告。"
+            "输出必须是 markdown，包含：\n"
+            "# 标题\n"
+            "## 报告引言（目的、研究范围、核心结论摘要）\n"
+            "## 执行摘要（覆盖观点、评级倾向、核心催化）\n"
+            "## 数据快照（算力层->模型层->市场层）\n"
+            f"{pest_section}"
+            "## 公司概况与治理结构（前身、产品矩阵、历史沿革、股权结构、核心团队、激励机制）\n"
+            "## 商业模式与盈利模式拆解\n"
+            "## 行业空间与量价框架（量=需求，价=成本/ASP）\n"
+            "## 行业发展现状（规模、增长驱动、市场结构、区域分布）\n"
+            f"{segmentation_section}"
+            "## 竞争格局与可比公司（同行/历史/国际）\n"
+            f"{five_forces_section}"
+            "## 核心竞争优势与护城河（技术、客户、成本、研发）\n"
+            "## 财务质量分析（成长、盈利、现金流、周转）\n"
+            "## 未来3年预测（收入、毛利、费用率、利润）\n"
+            "## 估值框架与敏感性分析\n"
+            "## 标杆企业分析（2-3家，可选）\n"
+            "## 风险与不确定性\n"
+            "## 数据来源与口径说明\n"
+            "## 结论与建议\n"
+            "要求：逻辑清晰，强调公司基本面，先事实后判断。"
+            "对建议部分需分别给出：企业建议、投资者建议。"
+        )
+    else:
+        system_prompt = (
+            "你是一名资深行业分析师。请使用中文输出专业、结构化行业研究报告。"
+            "输出必须是 markdown，包含：\n"
+            "# 标题\n"
+            "## 报告引言（目的、行业定义与范围、核心结论摘要）\n"
+            "## 执行摘要\n"
+            "## 数据快照（算力层->模型层->市场层）\n"
+            f"{pest_section}"
+            "## 公司概况与治理结构（前身、产品矩阵、历史沿革、股权结构、核心团队、战略变更、财务概览）\n"
+            "## 行业定义与边界\n"
+            "## 行业分析：量价框架（量=下游需求/渗透率，价=成本/ASP/溢价）\n"
+            "## 市场规模与增速（给出区间/假设）\n"
+            "## 产业链与关键环节（上中下游）\n"
+            "## 行业发展现状（增长驱动、市场结构、区域分布）\n"
+            f"{segmentation_section}"
+            "## 竞争格局（5力/CRn/商业模式）\n"
+            f"{five_forces_section}"
+            "## 竞争优势与护城河验证（产品、技术、研发、客户、成本）\n"
+            "## 核心驱动因素与边际变化\n"
+            "## 三维比较（同行比较、历史比较、国际比较）\n"
+            "## 风险与不确定性\n"
+            "## 未来3年情景推演（乐观/基准/悲观）与敏感性分析\n"
+            "## 市场规模预测（3-5年，含依据）\n"
+            "## 盈利预测与关键假设（收入、毛利、费用率、现金流）\n"
+            "## 标杆企业分析（2-3家，可选）\n"
+            "## 数据来源与口径说明\n"
+            "## 结论与建议\n"
+            "要求：逻辑清晰、可用于面试与业务沟通，避免空话。每一节先陈述事实数据，再给判断。"
+        )
     mode_hint = "常规深度报告"
     if mode == "daily":
         mode_hint = "日报：重点写过去24小时更新、市场异动和次日观察点。"
@@ -521,9 +629,18 @@ def generate_report_markdown(
     user_prompt = (
         f"请围绕“{topic}”生成完整行业研究报告。\n"
         f"报告模式：{mode_hint}\n"
+        f"模板风格：{template_style}\n"
+        f"{toggle_hint}\n"
         f"报告日期：{today}\n"
         "你必须优先使用我给你的实时数据快照进行事实陈述，"
         "并在正文中明确区分“事实数据”和“基于数据的判断”。\n\n"
+        "写作规则：\n"
+        "1) 若是行业报告，仍需给出至少1-2个代表性公司的小节分析作为落地样本。\n"
+        "2) 行业分析必须围绕“量价”展开，并给出可验证先导指标。\n"
+        "3) 预测部分必须明确关键假设、变量方向和主要风险触发条件。\n"
+        "4) 禁止使用未经验证的自媒体二手数据作为核心论据。\n"
+        "5) 必须体现章节之间的因果链：环境 -> 现状 -> 竞争 -> 趋势/预测 -> 建议。\n"
+        "6) 尽量提供表格化摘要（如CRn、CAGR、三情景假设）。\n\n"
         f"实时数据快照如下：\n{data_json}\n"
     )
     text = llm_text(client, model, system_prompt, user_prompt, temperature=0.35)
@@ -549,20 +666,74 @@ def write_json(json_path: Path, payload: Dict) -> None:
 
 def write_docx(docx_path: Path, title: str, markdown_text: str) -> None:
     doc = Document()
-    doc.add_heading(title, level=1)
+
+    # Global document typography: Chinese Songti + English Times New Roman.
+    normal_style = doc.styles["Normal"]
+    normal_style.font.name = "Times New Roman"
+    normal_style._element.rPr.rFonts.set(qn("w:eastAsia"), "宋体")
+    normal_style.font.size = Pt(12)  # 小四
+    normal_style.paragraph_format.line_spacing_rule = WD_LINE_SPACING.ONE_POINT_FIVE
+    normal_style.paragraph_format.first_line_indent = Pt(24)  # 首行缩进2字符
+    normal_style.paragraph_format.space_before = Pt(0)
+    normal_style.paragraph_format.space_after = Pt(0)
+
+    title_para = doc.add_heading(title, level=1)
+    title_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    title_para.paragraph_format.first_line_indent = Pt(0)
+    title_para.paragraph_format.space_before = Pt(12)
+    title_para.paragraph_format.space_after = Pt(12)
+    for run in title_para.runs:
+        run.font.name = "Times New Roman"
+        run._element.rPr.rFonts.set(qn("w:eastAsia"), "宋体")
+        run.font.size = Pt(16)  # 三号
+        run.bold = True
+
     for line in markdown_text.splitlines():
         striped = line.strip()
         if not striped:
-            doc.add_paragraph("")
+            para = doc.add_paragraph("")
+            para.paragraph_format.line_spacing_rule = WD_LINE_SPACING.ONE_POINT_FIVE
+            para.paragraph_format.first_line_indent = Pt(24)
+            para.paragraph_format.space_before = Pt(0)
+            para.paragraph_format.space_after = Pt(0)
             continue
         if striped.startswith("### "):
-            doc.add_heading(striped[4:], level=3)
+            para = doc.add_heading(striped[4:], level=3)
+            para.paragraph_format.first_line_indent = Pt(0)
+            para.paragraph_format.space_before = Pt(6)
+            para.paragraph_format.space_after = Pt(6)
+            para.paragraph_format.line_spacing_rule = WD_LINE_SPACING.ONE_POINT_FIVE
+            para.paragraph_format.keep_with_next = True
+            for run in para.runs:
+                run.font.name = "Times New Roman"
+                run._element.rPr.rFonts.set(qn("w:eastAsia"), "宋体")
+                run.font.size = Pt(14)  # 四号
+                run.bold = True
         elif striped.startswith("## "):
-            doc.add_heading(striped[3:], level=2)
+            para = doc.add_heading(striped[3:], level=2)
+            para.paragraph_format.first_line_indent = Pt(0)
+            para.paragraph_format.space_before = Pt(10)
+            para.paragraph_format.space_after = Pt(8)
+            para.paragraph_format.line_spacing_rule = WD_LINE_SPACING.ONE_POINT_FIVE
+            para.paragraph_format.keep_with_next = True
+            for run in para.runs:
+                run.font.name = "Times New Roman"
+                run._element.rPr.rFonts.set(qn("w:eastAsia"), "宋体")
+                run.font.size = Pt(15)  # 小三
+                run.bold = True
         elif striped.startswith("# "):
             continue
         else:
-            doc.add_paragraph(striped)
+            para = doc.add_paragraph(striped)
+            para.paragraph_format.line_spacing_rule = WD_LINE_SPACING.ONE_POINT_FIVE
+            para.paragraph_format.first_line_indent = Pt(24)
+            para.paragraph_format.space_before = Pt(0)
+            para.paragraph_format.space_after = Pt(0)
+            para.paragraph_format.widow_control = True
+            for run in para.runs:
+                run.font.name = "Times New Roman"
+                run._element.rPr.rFonts.set(qn("w:eastAsia"), "宋体")
+                run.font.size = Pt(12)  # 小四
     doc.save(str(docx_path))
 
 
@@ -662,10 +833,34 @@ def main() -> int:
         default=2,
         help="When theme=auto, mix top-k themes by keyword hit weights",
     )
+    parser.add_argument(
+        "--template-style",
+        required=False,
+        default=DEFAULT_TEMPLATE_STYLE,
+        choices=["industry_deep_dive", "company_initiation", "auto"],
+        help="Report template style",
+    )
+    parser.add_argument("--include-pest", dest="include_pest", action="store_true", default=True, help="Include PEST section")
+    parser.add_argument("--no-include-pest", dest="include_pest", action="store_false", help="Disable PEST section")
+    parser.add_argument("--include-five-forces", dest="include_five_forces", action="store_true", default=True, help="Include Five Forces section")
+    parser.add_argument("--no-include-five-forces", dest="include_five_forces", action="store_false", help="Disable Five Forces section")
+    parser.add_argument("--include-segmentation", dest="include_segmentation", action="store_true", default=True, help="Include segmentation section")
+    parser.add_argument("--no-include-segmentation", dest="include_segmentation", action="store_false", help="Disable segmentation section")
+    parser.add_argument(
+        "--preset",
+        required=False,
+        default=DEFAULT_PRESET,
+        choices=["custom", "quick", "full"],
+        help="Section preset: quick=short version, full=all sections, custom=manual toggles",
+    )
     args = parser.parse_args()
 
     query = (args.query or "").strip()
     mode = normalize_mode(args.mode)
+    requested_template_style = normalize_template_style(args.template_style)
+    include_pest, include_five_forces, include_segmentation = resolve_section_toggles(
+        args.preset, args.include_pest, args.include_five_forces, args.include_segmentation
+    )
     if not query:
         query = DEFAULT_TOPIC
     if len(query) > MAX_TOPIC_LEN:
@@ -679,6 +874,7 @@ def main() -> int:
         client = build_client()
         model = os.getenv("OPENAI_MODEL", DEFAULT_MODEL)
         topic = extract_topic_with_llm(client, query, model)
+        resolved_template_style = pick_template_style(requested_template_style, query, topic)
         force_theme = "" if (args.theme or "auto") == "auto" else (args.theme or "").strip().lower()
         selected_theme, watchlist, mix_info = pick_watchlist_by_topic(
             watchlist_config,
@@ -688,7 +884,17 @@ def main() -> int:
         )
         data_snapshot = fetch_real_data(topic, watchlist=watchlist, mode=mode)
         data_snapshot["theme_mix"] = mix_info
-        title, md_text = generate_report_markdown(client, topic, model, data_snapshot, mode=mode)
+        title, md_text = generate_report_markdown(
+            client,
+            topic,
+            model,
+            data_snapshot,
+            mode=mode,
+            template_style=resolved_template_style,
+            include_pest=include_pest,
+            include_five_forces=include_five_forces,
+            include_segmentation=include_segmentation,
+        )
 
         ts = dt.datetime.now().strftime("%Y%m%d_%H%M%S")
         safe = sanitize_filename(title)
@@ -711,6 +917,12 @@ def main() -> int:
             "title": title,
             "topic": topic,
             "mode": mode,
+            "preset": args.preset,
+            "template_style": resolved_template_style,
+            "template_style_requested": requested_template_style,
+            "include_pest": include_pest,
+            "include_five_forces": include_five_forces,
+            "include_segmentation": include_segmentation,
             "selected_theme": selected_theme,
             "theme_mix": mix_info,
             "watchlist_path": (Path(args.watchlist).as_posix() if args.watchlist else (base_dir / DEFAULT_WATCHLIST_FILE).as_posix()),

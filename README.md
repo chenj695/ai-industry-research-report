@@ -13,6 +13,8 @@ An extensible Cursor skill for generating data-enhanced industry research report
 - **Structured report generation**
   - extracts topic from free-form query
   - writes analyst-style Chinese report in Markdown
+  - follows a 4-part framework: company profile, industry quantity-price analysis, competitive edge, and forecast
+  - supports two switchable styles: `industry_deep_dive` and `company_initiation`
   - exports DOCX/PDF and shareable HTML
 - **Real data snapshot**
   - compute layer: infra repo release/activity signals
@@ -96,6 +98,28 @@ python .cursor/skills/industry-research-report/scripts/get_data.py --query "GPU�
 python .cursor/skills/industry-research-report/scripts/tracker.py --query "AI产业" --mode both --weekly-day 1
 ```
 
+### 6) Template style switch
+
+```bash
+python .cursor/skills/industry-research-report/scripts/get_data.py --query "AI行业研究" --template-style industry_deep_dive
+python .cursor/skills/industry-research-report/scripts/get_data.py --query "某AI公司首次覆盖" --template-style company_initiation
+python .cursor/skills/industry-research-report/scripts/get_data.py --query "某AI公司估值与盈利预测" --template-style auto
+```
+
+### 7) Optional section toggles (report length control)
+
+```bash
+python .cursor/skills/industry-research-report/scripts/get_data.py --query "AI行业研究" --include-pest --include-five-forces --include-segmentation
+python .cursor/skills/industry-research-report/scripts/get_data.py --query "AI行业研究（短版）" --no-include-pest --no-include-five-forces --no-include-segmentation
+```
+
+### 8) Quick presets
+
+```bash
+python .cursor/skills/industry-research-report/scripts/get_data.py --query "AI行业研究（短版）" --preset quick
+python .cursor/skills/industry-research-report/scripts/get_data.py --query "AI行业研究（全量版）" --preset full
+```
+
 ## watchlist.json Overview
 
 Key fields:
@@ -132,6 +156,35 @@ Typical outputs:
 - `<timestamp>_<title>.docx`
 - `<timestamp>_<title>.pdf`
 - `<timestamp>_<title>.html`
+
+## Report Writing Framework
+
+The generated report now follows a practical research-writing structure for early-stage analysts:
+
+- **Part 1: Company profile**
+  - background, product matrix, evolution, ownership/governance, management team, strategy updates, financial snapshot
+- **Part 2: Industry analysis (quantity-price framework)**
+  - industry boundary, value chain, demand-side volume indicators, supply-side price/cost indicators, market sizing
+- **Part 3: Competitive advantages**
+  - competition landscape, moat validation by product/technology/R&D/customers/cost
+- **Part 4: Forecast**
+  - key assumptions, 3-scenario projection, profitability outlook, sensitivity and risk triggers
+
+It also emphasizes:
+
+- peer/history/global benchmarking
+- explicit data-source and methodology disclosure
+
+In addition, the template now borrows from a universal industry-report framework:
+
+- intro with objective/scope/key findings
+- macro environment via PEST
+- current-state analysis (size, growth, structure, region)
+- optional segmented market breakdown
+- Porter Five Forces competition view
+- 3-5 year outlook with opportunity/challenge and forecast basis
+- optional benchmark-company section
+- separate recommendations for enterprises and investors
 
 ## Notes
 
