@@ -136,6 +136,13 @@ python .cursor/skills/industry-research-report/scripts/get_data.py --query "AI�
 python .cursor/skills/industry-research-report/scripts/get_data.py --query "AI行业研究（全量版）" --preset full
 ```
 
+Narrative strength switch:
+
+```bash
+python .cursor/skills/industry-research-report/scripts/get_data.py --query "AI行业周报" --mode weekly --narrative-strength medium
+python .cursor/skills/industry-research-report/scripts/get_data.py --query "AI行业深度研究" --narrative-strength high
+```
+
 ### Step 3: Return result
 
 Use this output template:
@@ -317,6 +324,9 @@ Use this expanded structure when you need a classic industry-analysis report:
   - `--preset quick`: turn off PEST/Five-Forces/Segmentation for concise report
   - `--preset full`: turn on all optional sections
   - `--preset custom`: keep manual toggle values (default)
+- Narrative strength:
+  - `--narrative-strength medium`: short and concise style, faster reading
+  - `--narrative-strength high`: deep argumentative style with fuller evidence chain (default)
 
 ## Windows Task Scheduler (optional)
 

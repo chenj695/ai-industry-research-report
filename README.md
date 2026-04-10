@@ -120,6 +120,13 @@ python .cursor/skills/industry-research-report/scripts/get_data.py --query "AI�
 python .cursor/skills/industry-research-report/scripts/get_data.py --query "AI行业研究（全量版）" --preset full
 ```
 
+### 9) Narrative strength switch (short vs deep)
+
+```bash
+python .cursor/skills/industry-research-report/scripts/get_data.py --query "AI产业周报" --mode weekly --narrative-strength medium
+python .cursor/skills/industry-research-report/scripts/get_data.py --query "AI产业深度研究" --narrative-strength high
+```
+
 ## 🧠 `watchlist.json` Overview
 
 Key fields:

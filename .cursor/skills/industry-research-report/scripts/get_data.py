@@ -16,7 +16,7 @@ from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.enum.text import WD_LINE_SPACING
 from docx.oxml.ns import qn
-from docx.shared import Pt
+from docx.shared import Pt, RGBColor
 import httpx
 from openai import OpenAI
 from reportlab.lib.pagesizes import A4
@@ -32,6 +32,7 @@ DEFAULT_TOPIC = "AI产业"
 DEFAULT_WATCHLIST_FILE = "watchlist.json"
 DEFAULT_TEMPLATE_STYLE = "industry_deep_dive"
 DEFAULT_PRESET = "custom"
+DEFAULT_NARRATIVE_STRENGTH = "high"
 
 
 def sanitize_filename(name: str) -> str:
@@ -153,6 +154,11 @@ def resolve_section_toggles(
     if p == "full":
         return True, True, True
     return include_pest, include_five_forces, include_segmentation
+
+
+def normalize_narrative_strength(value: str) -> str:
+    v = (value or DEFAULT_NARRATIVE_STRENGTH).strip().lower()
+    return v if v in {"high", "medium"} else DEFAULT_NARRATIVE_STRENGTH
 
 
 def load_watchlist(base_dir: Path, watchlist_path: str = "") -> Dict:
@@ -551,6 +557,7 @@ def generate_report_markdown(
     include_pest: bool = True,
     include_five_forces: bool = True,
     include_segmentation: bool = True,
+    narrative_strength: str = DEFAULT_NARRATIVE_STRENGTH,
 ) -> Tuple[str, str]:
     mode = normalize_mode(mode)
     template_style = normalize_template_style(template_style)
@@ -563,6 +570,31 @@ def generate_report_markdown(
         f"五力={'on' if include_five_forces else 'off'}，"
         f"细分市场={'on' if include_segmentation else 'off'}。"
     )
+    narrative_strength = normalize_narrative_strength(narrative_strength)
+    narrative_hint = (
+        "写作强度：medium（短平快版，结论优先、段落更短、论证简洁）"
+        if narrative_strength == "medium"
+        else "写作强度：high（深论证版，证据链更完整、因果展开更充分）"
+    )
+    narrative_rules = (
+        "表达与论证要求（medium，短平快）：\n"
+        "A. 每个一级章节至少1段完整论述；每段建议40-90字，先结论后要点证据。\n"
+        "B. 核心判断采用“事实 -> 结论”两步表达，因果链可简写但不得缺失关键逻辑。\n"
+        "C. 执行摘要输出“结论、证据、建议”三联结构。\n"
+        "D. 结论与建议部分至少给出2条可执行动作，并标注优先级（高/中/低）。\n"
+        "E. 周报模式下，优先写“本周变化点、原因、下周观察指标”，减少背景铺垫。\n"
+    )
+    if narrative_strength == "high":
+        narrative_rules = (
+            "表达与论证增强要求（high，深论证，必须严格执行）：\n"
+            "A. 每个一级章节至少包含2段完整论述；每段建议80-150字，避免口号式短句。\n"
+            "B. 每个核心判断都采用“事实 -> 机制 -> 影响”三步表达。\n"
+            "C. 对关键结论补充反方视角或约束条件，再给最终判断，避免单边叙事。\n"
+            "D. 执行摘要必须输出“结论、证据、含义、建议”四联结构。\n"
+            "E. 结论与建议部分至少给出3条可执行动作，并标注优先级（高/中/低）。\n"
+            "F. 周报模式下，突出“本周变化点、原因、下周观察指标”；避免泛化行业科普。\n"
+            "G. 公司覆盖模式下，突出“财务质量、估值框架、催化与风险对称”。\n"
+        )
     if template_style == "company_initiation":
         system_prompt = (
             "你是一名资深卖方分析师。请使用中文输出公司首次覆盖风格研究报告。"
@@ -589,6 +621,7 @@ def generate_report_markdown(
             "## 结论与建议\n"
             "要求：逻辑清晰，强调公司基本面，先事实后判断。"
             "对建议部分需分别给出：企业建议、投资者建议。"
+            "禁止只给一句话结论，必须给出论证过程与证据链。"
         )
     else:
         system_prompt = (
@@ -619,6 +652,7 @@ def generate_report_markdown(
             "## 数据来源与口径说明\n"
             "## 结论与建议\n"
             "要求：逻辑清晰、可用于面试与业务沟通，避免空话。每一节先陈述事实数据，再给判断。"
+            "禁止只给一句话结论，必须给出论证过程与证据链。"
         )
     mode_hint = "常规深度报告"
     if mode == "daily":
@@ -631,6 +665,7 @@ def generate_report_markdown(
         f"报告模式：{mode_hint}\n"
         f"模板风格：{template_style}\n"
         f"{toggle_hint}\n"
+        f"{narrative_hint}\n"
         f"报告日期：{today}\n"
         "你必须优先使用我给你的实时数据快照进行事实陈述，"
         "并在正文中明确区分“事实数据”和“基于数据的判断”。\n\n"
@@ -641,6 +676,7 @@ def generate_report_markdown(
         "4) 禁止使用未经验证的自媒体二手数据作为核心论据。\n"
         "5) 必须体现章节之间的因果链：环境 -> 现状 -> 竞争 -> 趋势/预测 -> 建议。\n"
         "6) 尽量提供表格化摘要（如CRn、CAGR、三情景假设）。\n\n"
+        f"{narrative_rules}\n"
         f"实时数据快照如下：\n{data_json}\n"
     )
     text = llm_text(client, model, system_prompt, user_prompt, temperature=0.35)
@@ -687,9 +723,61 @@ def write_docx(docx_path: Path, title: str, markdown_text: str) -> None:
         run._element.rPr.rFonts.set(qn("w:eastAsia"), "宋体")
         run.font.size = Pt(16)  # 三号
         run.bold = True
+        run.font.color.rgb = RGBColor(0, 0, 0)
 
-    for line in markdown_text.splitlines():
-        striped = line.strip()
+    def clean_inline_md(text: str) -> str:
+        text = text.replace("**", "").replace("__", "").replace("`", "")
+        return text.strip()
+
+    def is_md_table_line(text: str) -> bool:
+        t = text.strip()
+        return t.startswith("|") and "|" in t[1:]
+
+    def split_md_row(text: str) -> List[str]:
+        t = text.strip().strip("|")
+        return [c.strip() for c in t.split("|")]
+
+    lines = markdown_text.splitlines()
+    i = 0
+    while i < len(lines):
+        striped = lines[i].strip()
+
+        if is_md_table_line(striped):
+            table_lines: List[str] = []
+            while i < len(lines) and is_md_table_line(lines[i].strip()):
+                table_lines.append(lines[i].strip())
+                i += 1
+            if table_lines:
+                header = split_md_row(table_lines[0])
+                body_lines = table_lines[1:]
+                sep_pattern = re.compile(r"^\|\s*[-:| ]+\|?\s*$")
+                body_lines = [ln for ln in body_lines if not sep_pattern.match(ln)]
+                table = doc.add_table(rows=1, cols=max(1, len(header)))
+                table.style = "Table Grid"
+                for c_idx, val in enumerate(header):
+                    p = table.rows[0].cells[c_idx].paragraphs[0]
+                    p.paragraph_format.line_spacing_rule = WD_LINE_SPACING.ONE_POINT_FIVE
+                    run = p.add_run(clean_inline_md(val))
+                    run.font.name = "Times New Roman"
+                    run._element.rPr.rFonts.set(qn("w:eastAsia"), "宋体")
+                    run.font.size = Pt(12)
+                    run.bold = True
+                    run.font.color.rgb = RGBColor(0, 0, 0)
+                for row in body_lines:
+                    vals = split_md_row(row)
+                    r = table.add_row()
+                    for c_idx in range(len(header)):
+                        cell_val = vals[c_idx] if c_idx < len(vals) else ""
+                        p = r.cells[c_idx].paragraphs[0]
+                        p.paragraph_format.line_spacing_rule = WD_LINE_SPACING.ONE_POINT_FIVE
+                        run = p.add_run(clean_inline_md(cell_val))
+                        run.font.name = "Times New Roman"
+                        run._element.rPr.rFonts.set(qn("w:eastAsia"), "宋体")
+                        run.font.size = Pt(12)
+                        run.font.color.rgb = RGBColor(0, 0, 0)
+            continue
+
+        i += 1
         if not striped:
             para = doc.add_paragraph("")
             para.paragraph_format.line_spacing_rule = WD_LINE_SPACING.ONE_POINT_FIVE
@@ -697,8 +785,10 @@ def write_docx(docx_path: Path, title: str, markdown_text: str) -> None:
             para.paragraph_format.space_before = Pt(0)
             para.paragraph_format.space_after = Pt(0)
             continue
+        if striped in {"---", "***", "___"}:
+            continue
         if striped.startswith("### "):
-            para = doc.add_heading(striped[4:], level=3)
+            para = doc.add_heading(clean_inline_md(striped[4:]), level=3)
             para.paragraph_format.first_line_indent = Pt(0)
             para.paragraph_format.space_before = Pt(6)
             para.paragraph_format.space_after = Pt(6)
@@ -709,8 +799,9 @@ def write_docx(docx_path: Path, title: str, markdown_text: str) -> None:
                 run._element.rPr.rFonts.set(qn("w:eastAsia"), "宋体")
                 run.font.size = Pt(14)  # 四号
                 run.bold = True
+                run.font.color.rgb = RGBColor(0, 0, 0)
         elif striped.startswith("## "):
-            para = doc.add_heading(striped[3:], level=2)
+            para = doc.add_heading(clean_inline_md(striped[3:]), level=2)
             para.paragraph_format.first_line_indent = Pt(0)
             para.paragraph_format.space_before = Pt(10)
             para.paragraph_format.space_after = Pt(8)
@@ -721,10 +812,11 @@ def write_docx(docx_path: Path, title: str, markdown_text: str) -> None:
                 run._element.rPr.rFonts.set(qn("w:eastAsia"), "宋体")
                 run.font.size = Pt(15)  # 小三
                 run.bold = True
+                run.font.color.rgb = RGBColor(0, 0, 0)
         elif striped.startswith("# "):
             continue
         else:
-            para = doc.add_paragraph(striped)
+            para = doc.add_paragraph(clean_inline_md(striped))
             para.paragraph_format.line_spacing_rule = WD_LINE_SPACING.ONE_POINT_FIVE
             para.paragraph_format.first_line_indent = Pt(24)
             para.paragraph_format.space_before = Pt(0)
@@ -734,6 +826,7 @@ def write_docx(docx_path: Path, title: str, markdown_text: str) -> None:
                 run.font.name = "Times New Roman"
                 run._element.rPr.rFonts.set(qn("w:eastAsia"), "宋体")
                 run.font.size = Pt(12)  # 小四
+                run.font.color.rgb = RGBColor(0, 0, 0)
     doc.save(str(docx_path))
 
 
@@ -853,11 +946,19 @@ def main() -> int:
         choices=["custom", "quick", "full"],
         help="Section preset: quick=short version, full=all sections, custom=manual toggles",
     )
+    parser.add_argument(
+        "--narrative-strength",
+        required=False,
+        default=DEFAULT_NARRATIVE_STRENGTH,
+        choices=["high", "medium"],
+        help="Narrative depth: medium=short concise, high=deep argumentative",
+    )
     args = parser.parse_args()
 
     query = (args.query or "").strip()
     mode = normalize_mode(args.mode)
     requested_template_style = normalize_template_style(args.template_style)
+    narrative_strength = normalize_narrative_strength(args.narrative_strength)
     include_pest, include_five_forces, include_segmentation = resolve_section_toggles(
         args.preset, args.include_pest, args.include_five_forces, args.include_segmentation
     )
@@ -894,6 +995,7 @@ def main() -> int:
             include_pest=include_pest,
             include_five_forces=include_five_forces,
             include_segmentation=include_segmentation,
+            narrative_strength=narrative_strength,
         )
 
         ts = dt.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -918,6 +1020,7 @@ def main() -> int:
             "topic": topic,
             "mode": mode,
             "preset": args.preset,
+            "narrative_strength": narrative_strength,
             "template_style": resolved_template_style,
             "template_style_requested": requested_template_style,
             "include_pest": include_pest,
