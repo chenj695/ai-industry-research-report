@@ -21,6 +21,11 @@ An extensible Cursor skill for generating data-enhanced industry research report
   - model layer: framework/model ecosystem snapshots
   - market layer: US + A/HK quotes
   - news layer: topic and AI macro RSS streams
+  - research layer: ArXiv latest papers
+  - developer ecosystem layer: PyPI package trends
+  - fundamental layer: SEC filings + company financial metrics
+  - cloud compute layer: Azure GPU retail price indicators
+  - capital layer: AI funding & M&A news pulse
 - ⏱️ **Tracking mode**
   - daily/weekly report generation
   - optional tracker history output (`jsonl`)
@@ -63,7 +68,14 @@ Optional:
 ```powershell
 $env:OPENAI_BASE_URL="https://api.openai.com/v1"
 $env:OPENAI_MODEL="gpt-4o-mini"
+$env:SEC_EDGAR_USER_AGENT="YourName your.email@example.com"
+# If the model gateway returns 413 / request too large, lower the JSON embedded in the LLM prompt (full data still in *_data.json):
+$env:REPORT_DATA_SNAPSHOT_MAX_CHARS="3000"
+# Show real exception in stderr when generation fails:
+$env:REPORT_DEBUG="1"
 ```
+
+GitHub Models note: some endpoints cap **total request size** (e.g. `gpt-4.1` ~8000 input tokens). This repo sends a **slimmed** `data_snapshot` into the prompt; use `openai/gpt-4o-mini` or raise `REPORT_DATA_SNAPSHOT_MAX_CHARS` only if your provider allows a larger body.
 
 ## 🚀 Usage
 
@@ -126,6 +138,34 @@ python .cursor/skills/industry-research-report/scripts/get_data.py --query "AI�
 python .cursor/skills/industry-research-report/scripts/get_data.py --query "AI产业周报" --mode weekly --narrative-strength medium
 python .cursor/skills/industry-research-report/scripts/get_data.py --query "AI产业深度研究" --narrative-strength high
 ```
+
+## 🧾 Data Sources
+
+Current data-source coverage includes:
+
+- **GitHub API** (`api.github.com`)
+  - releases and issue velocity for compute/model repos
+- **Hugging Face API** (`huggingface.co/api/models`)
+  - top model ecosystem snapshot
+- **Stooq CSV feed** (`stooq.com`)
+  - US equity quote monitoring
+- **Yahoo Finance quote API** (`query1.finance.yahoo.com`)
+  - A-share and Hong Kong quote monitoring
+- **Google News RSS** (`news.google.com/rss`)
+  - macro AI news, topic news, and funding/M&A pulse
+- **ArXiv Atom API** (`export.arxiv.org/api`)
+  - latest AI-related paper stream
+- **PyPI + PyPIStats APIs** (`pypi.org`, `pypistats.org`)
+  - package release metadata + recent download trends
+- **SEC EDGAR APIs** (`sec.gov`, `data.sec.gov`)
+  - recent filings (`10-K/10-Q/8-K/20-F/6-K`)
+  - company financial facts (revenue/net income/gross profit/operating income/EPS/cash/R&D/capex)
+  - **Important:** SEC endpoints expect a descriptive `User-Agent` (organization + contact). Set `SEC_EDGAR_USER_AGENT` to your email or org string; otherwise requests may fail silently and financial tables show `N/A`.
+  - The generated **financial comparison table** uses **full company names** for selected US-listed peers (no bare tickers in the table).
+- **Azure Retail Prices API** (`prices.azure.com`)
+  - cloud GPU price indicators (e.g., H100/A100/L40/V100, by region/sku)
+
+These sources are merged into `data_snapshot` and written to `*_data.json` for traceable evidence in generated reports.
 
 ## 🧠 `watchlist.json` Overview
 

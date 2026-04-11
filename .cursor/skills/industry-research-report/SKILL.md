@@ -327,6 +327,10 @@ Use this expanded structure when you need a classic industry-analysis report:
 - Narrative strength:
   - `--narrative-strength medium`: short and concise style, faster reading
   - `--narrative-strength high`: deep argumentative style with fuller evidence chain (default)
+- **Comparable company financial table vs non-listed innovators (writing rule for agents):**
+  - The script post-processes a「重点公司财务对比表」that is **limited to listed issuers** (US SEC path); table rows use **full company names**, not bare ticker codes.
+  - **Non-listed** AI innovators (e.g. 深度求索/DeepSeek、智谱、月之暗面/Kimi、MiniMax 等) **must not** appear in that financial comparison table, and the report **must not invent** revenue, profit, or other financial numbers for them.
+  - Those entities **may** be covered **qualitatively** in sections such as **竞争格局**、**技术/开源生态**、**应用与商业模式**; always **cite the source** and **state uncertainty** where figures are not from audited public filings.
 
 ## Windows Task Scheduler (optional)
 
